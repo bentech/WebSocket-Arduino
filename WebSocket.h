@@ -50,7 +50,7 @@
 #endif
 // Amount of time (in ms) a user may be connected before getting disconnected 
 // for timing out (i.e. not sending any data to the server).
-#define TIMEOUT_IN_MS 10000
+#define TIMEOUT_IN_MS 2000
 #define BUFFER 32
 // ACTION_SPACE is how many actions are allowed in a program. Defaults to 
 // 5 unless overwritten by user.
@@ -262,9 +262,10 @@ bool WebSocket::analyzeRequest(int bufferLength) {
 		char numberschar[numbers.length()+1];
 		
 		numbers.toCharArray(numberschar, numbers.length()+1);
-		
+		#if DEBUGGING
 		Serial.println(strtoul(numberschar, NULL, 10));
 		Serial.println(spaces);
+		#endif	
 		
 		if (spaces > 0 && (strtoul(numberschar, NULL, 10) % spaces) == 0){
 			#if DEBUGGING
@@ -278,9 +279,9 @@ bool WebSocket::analyzeRequest(int bufferLength) {
 		
 		
 		intkey[i] = strtoul(numberschar, NULL, 10) / spaces;		
-	
-		Serial.println(intkey[i], DEC);
-
+		#if DEBUGGING
+			Serial.println(intkey[i], DEC);
+		#endif	
 	}
 	
 	int x=0;
@@ -307,7 +308,6 @@ bool WebSocket::analyzeRequest(int bufferLength) {
 		Serial.print(challenge[x],HEX);
 	}
 	 Serial.println("");
-	x=0;
 	#endif	
 	MD5(challenge, 16); 
 	#if DEBUGGING  
@@ -387,20 +387,20 @@ void WebSocket::socketStream(int socketBufferLength) {
        Serial.println("*** READ ***");
 	#endif
         char bite;
-        // String to hold bytes sent by client to server.
-        String socketString = String(socketBufferLength);
-        // Timeout timeframe variable.
+
         unsigned long timeoutTime = millis() + TIMEOUT_IN_MS;
 		
 		if(!socket_client.connected()) {
 		
 			#if DEBUGGING
 			Serial.println("*** DISCONNECT ***");
-			socket_reading = false;
 			#endif
+			socket_reading = false;
 			return;
 		}
 
+		String socketString = "";
+		
         // While there is a client stream to read...
         while ((bite = socket_client.read()) && socket_reading) {
             // Append everything that's not a 0xFF byte to socketString
@@ -408,7 +408,12 @@ void WebSocket::socketStream(int socketBufferLength) {
 			if((uint8_t) bite != 0xFF) {
                 socketString += bite;
             } else {
-                // Timeout check.
+				
+				if(socketString.length() > 0){
+					break;
+				}
+			
+                // Timeout check.			
                 unsigned long currentTime = millis();
                 if ((currentTime > timeoutTime) && !socket_client.connected()) {
 					#if DEBUGGING
@@ -459,9 +464,8 @@ void WebSocket::executeActions(String socketString) {
         Serial.print(i);
         Serial.print("\n");
 #endif
-        //trim data from before start of message
-        String substring = socketString.substring(2);
-        socket_actions[i].socketAction(*this, substring);
+
+        socket_actions[i].socketAction(*this, socketString);
     }
 }
 
